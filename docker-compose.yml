@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: trivia
+      POSTGRES_USER: trivia
+      POSTGRES_PASSWORD: trivia
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trivia -d trivia"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      TRIVIA_DATABASE_URL: postgresql+psycopg://trivia:trivia@postgres:5432/trivia
+      TRIVIA_MEDIA_ROOT: /data/media
+      TRIVIA_SEED_ON_START: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./media:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment:
+      TRIVIA_DATABASE_URL: postgresql+psycopg://trivia:trivia@postgres:5432/trivia
+      TRIVIA_MEDIA_ROOT: /data/media
+      TRIVIA_SEED_ON_START: "false"
+      TRIVIA_WORKER_INTERVAL_SECONDS: "3600"
+    volumes:
+      - ./media:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
